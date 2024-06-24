@@ -19,11 +19,15 @@
 package security
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"gotest.tools/v3/assert"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -36,6 +40,49 @@ func TestGetUserGroupCache(t *testing.T) {
 	if len(testCache.ugs) != 0 {
 		t.Errorf("Cache not empty: %v", testCache.ugs)
 	}
+
+	testCache.Stop()
+	if instance != nil {
+		t.Errorf("instance should be nil")
+	}
+	assert.Equal(t, stopped.Load(), true)
+
+	// get the cache with the os resolver set
+	testCache = GetUserGroupCache("os")
+	if testCache == nil {
+		t.Fatal("Cache create failed")
+	}
+	if len(testCache.ugs) != 0 {
+		t.Errorf("Cache not empty: %v", testCache.ugs)
+	}
+
+	testCache.Stop()
+	if instance != nil {
+		t.Errorf("instance should be nil")
+	}
+	assert.Equal(t, stopped.Load(), true)
+
+	// get the cache with the default resolver set
+	testCache = GetUserGroupCache("unknown")
+	if testCache == nil {
+		t.Fatal("Cache create failed")
+	}
+	if len(testCache.ugs) != 0 {
+		t.Errorf("Cache not empty: %v", testCache.ugs)
+	}
+
+	testCache.Stop()
+	if instance != nil {
+		t.Errorf("instance should be nil")
+	}
+	assert.Equal(t, stopped.Load(), true)
+
+	// test for re stop again
+	testCache.Stop()
+	if instance != nil {
+		t.Errorf("instance should be nil")
+	}
+	assert.Equal(t, stopped.Load(), true)
 }
 
 func TestGetUserGroup(t *testing.T) {
@@ -104,6 +151,25 @@ func TestBrokenUserGroup(t *testing.T) {
 	// check returned info: 4 groups, primary group is duplicate
 	if len(ug.Groups) != 4 {
 		t.Errorf("User 'testuser3' not resolved correctly: duplicate primary group not filtered %v", ug)
+	}
+
+	getLookupError := func(username string) error {
+		return fmt.Errorf("lookup failed for user: %s", username)
+	}
+	ug, err = testCache.GetUserGroup("unknown")
+	assert.ErrorContains(t, err, getLookupError("unknown").Error())
+
+	ug, err = testCache.GetUserGroup("testuser4")
+	assert.NilError(t, err)
+
+	ug, err = testCache.GetUserGroup("testuser5")
+	assert.ErrorContains(t, err, getLookupError("testuser5").Error())
+
+	ug, err = testCache.GetUserGroup("invalid-gid-user")
+	assert.ErrorContains(t, err, getLookupError("invalid-gid-user").Error())
+	exceptedGroup := []string{"1_001"}
+	if !reflect.DeepEqual(ug.Groups, exceptedGroup) {
+		t.Errorf("group should be: %v, but got: %v", exceptedGroup, ug.Groups)
 	}
 }
 
@@ -187,6 +253,50 @@ func TestCacheCleanUp(t *testing.T) {
 	}
 }
 
+func TestIntervalCacheCleanUp(t *testing.T) {
+	testCache := GetUserGroupCache("test")
+	testCache.resetCache()
+	// test cache should be empty now
+	if len(testCache.ugs) != 0 {
+		t.Fatalf("Cache not empty: %v", testCache.ugs)
+	}
+
+	// resolve an existing user
+	_, err := testCache.GetUserGroup("testuser1")
+	if err != nil {
+		t.Error("Lookup should not have failed: testuser1 user")
+	}
+	_, err = testCache.GetUserGroup("testuser2")
+	if err != nil {
+		t.Error("Lookup should not have failed: testuser2 user")
+	}
+
+	ug := testCache.ugs["testuser1"]
+	if ug.failed {
+		t.Error("User 'testuser1' not resolved as a success")
+	}
+	// expire the successful lookup
+	ug.resolved -= 2 * poscache
+
+	// resolve a non existing user
+	_, err = testCache.GetUserGroup("unknown")
+	if err == nil {
+		t.Error("Lookup should have failed: unknown user")
+	}
+	ug = testCache.ugs["unknown"]
+	if !ug.failed {
+		t.Error("User 'unknown' not resolved as a failure")
+	}
+	// expire the failed lookup
+	ug.resolved -= 2 * negcache
+
+	// sleep to wait for interval, it will trigger cleanUpCache
+	time.Sleep(testCache.interval + 1*time.Second)
+	if len(testCache.ugs) != 1 {
+		t.Errorf("Cache not cleaned up : %v", testCache.ugs)
+	}
+}
+
 func TestConvertUGI(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
@@ -250,5 +360,17 @@ func TestConvertUGI(t *testing.T) {
 	ug, err = testCache.ConvertUGI(ugi, false)
 	if err == nil {
 		t.Errorf("invalid username, convert should have failed: %v", err)
+	}
+
+	// try unknown user with empty group when forced
+	ugi.User = "unknown"
+	ugi.Groups = []string{}
+	ug, err = testCache.ConvertUGI(ugi, true)
+	exceptedGroup := []string{common.AnonymousGroup}
+	if !reflect.DeepEqual(ug.Groups, exceptedGroup) {
+		t.Errorf("group should be: %v, but got: %v", exceptedGroup, ug.Groups)
+	}
+	if err != nil {
+		t.Errorf("unknown user, no groups, convert should not have failed: %v", err)
 	}
 }
