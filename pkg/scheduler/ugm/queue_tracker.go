@@ -19,6 +19,8 @@
 package ugm
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-core/pkg/common"
@@ -405,6 +407,7 @@ func (qt *QueueTracker) canRunApp(hierarchy []string, applicationID string, trac
 func (qt *QueueTracker) canBeRemoved() bool {
 	for _, childQT := range qt.childQueueTrackers {
 		// quick check to avoid further traversal
+		fmt.Printf("\n410\n")
 		if childQT.canBeRemovedInternal() {
 			if !childQT.canBeRemoved() {
 				return false
