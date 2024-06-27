@@ -240,12 +240,21 @@ func TestAddRemoveUserAndGroups(t *testing.T) {
 	assert.Equal(t, 1, len(manager.GetUsersResources()), "userTrackers count should be 1")
 	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
 
+	// user unknown not in userTrackers, should nothing happen
+	unknownUser := security.UserGroup{User: "unknown", Groups: []string{"unknown"}}
+	manager.DecreaseTrackedResource(queuePath2, TestApp2, usage2, unknownUser, true)
+	assert.Equal(t, 1, len(manager.GetUsersResources()), "userTrackers count should be 1")
+	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
+
 	manager.DecreaseTrackedResource(queuePath2, TestApp2, usage2, user1, true)
 	assert.Equal(t, 0, len(manager.GetUsersResources()), "userTrackers count should be 0")
 	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
 
 	assert.Assert(t, manager.GetUserTracker(user.User) == nil)
 	assert.Assert(t, manager.GetGroupTracker(user.Groups[0]) == nil)
+
+	manager.IncreaseTrackedResource(queuePath2, TestApp2, usage2, user1)
+	manager.IncreaseTrackedResource(queuePath2, TestApp2, usage2, user1)
 }
 
 func TestUpdateConfig(t *testing.T) {
@@ -587,9 +596,13 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 	// Queue setup:
 	// root->parent
 	user := security.UserGroup{User: "user1", Groups: []string{"group1"}}
+	user2 := security.UserGroup{User: "user2", Groups: []string{"group2"}}
 	conf := createUpdateConfig(user.User, user.Groups[0])
 	manager := GetUserManager()
 	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+
+	// conf = createUpdateConfig(user2.User, user2.Groups[0])
+	// manager.UpdateConfig(conf.Queues[0], "root")
 
 	expectedResource, err := resources.NewResourceFromConf(map[string]string{"memory": "50", "vcores": "50"})
 	if err != nil {
@@ -603,12 +616,16 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 
 	for i := 1; i <= 2; i++ {
 		manager.IncreaseTrackedResource(queuePath1, TestApp1, usage, user)
+		manager.IncreaseTrackedResource(queuePath1, "test-app-2", usage, user2)
 	}
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
-
+	fmt.Printf("\nGoal1Test\n")
+	manager.DecreaseTrackedResource(queuePath1, "test-app-2", usage, user2, true)
+	fmt.Printf("\nGoal1Test-\n")
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, false)
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, true)
+	fmt.Printf("\nGoal1Test\n")
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
 
@@ -618,9 +635,9 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
-
+	fmt.Printf("\nGoal1Test2\n")
 	manager.DecreaseTrackedResource("root.parent.leaf", TestApp1, usage, user, true)
-
+	fmt.Printf("\nGoal1Test2\n")
 	conf = createConfigWithoutLimits()
 	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
 
@@ -629,9 +646,10 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 	}
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
-
+	fmt.Printf("\nGoal1Test3\n")
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, false)
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, true)
+	fmt.Printf("\nGoal1Test3\n")
 	assert.Equal(t, manager.GetUserTracker(user.User) == nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
 }
