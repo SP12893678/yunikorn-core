@@ -19,6 +19,7 @@
 package ugm
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/apache/yunikorn-core/pkg/common"
@@ -69,6 +70,7 @@ func (gt *GroupTracker) decreaseTrackedResource(queuePath, applicationID string,
 	if removeApp {
 		delete(gt.applications, applicationID)
 	}
+	fmt.Printf("\ndecreaseTrackedResource73\n")
 	return gt.queueTracker.decreaseTrackedResource(strings.Split(queuePath, configs.DOT), applicationID, usage, removeApp)
 }
 
