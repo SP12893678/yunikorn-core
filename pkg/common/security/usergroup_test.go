@@ -37,9 +37,11 @@ func TestGetUserGroupCache(t *testing.T) {
 	if testCache == nil {
 		t.Fatal("Cache create failed")
 	}
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Errorf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	testCache.Stop()
 	if instance != nil {
@@ -52,9 +54,11 @@ func TestGetUserGroupCache(t *testing.T) {
 	if testCache == nil {
 		t.Fatal("Cache create failed")
 	}
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Errorf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	testCache.Stop()
 	if instance != nil {
@@ -67,9 +71,11 @@ func TestGetUserGroupCache(t *testing.T) {
 	if testCache == nil {
 		t.Fatal("Cache create failed")
 	}
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Errorf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	testCache.Stop()
 	if instance != nil {
@@ -89,11 +95,14 @@ func TestGetUserGroup(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	ug, err := testCache.GetUserGroup("testuser1")
+	testCache.lock.Lock()
 	assert.NilError(t, err, "Lookup should not have failed: testuser1")
 	if ug.failed {
 		t.Errorf("lookup failed which should not have: %t", ug.failed)
@@ -111,24 +120,31 @@ func TestGetUserGroup(t *testing.T) {
 	}
 	// click over the clock: if we do not get the cached version the new time will differ from the cache update
 	cachedUG.resolved -= 5
+	testCache.lock.Unlock()
+
 	ug, err = testCache.GetUserGroup("testuser1")
+	testCache.lock.Lock()
 	if err != nil || ug.resolved != cachedUG.resolved {
 		t.Errorf("User 'testuser1' not returned from Cache, resolution time differs: %d got %d (err = %v)", ug.resolved, cachedUG.resolved, err)
 	}
+	testCache.lock.Unlock()
 }
 
 func TestBrokenUserGroup(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	ug, err := testCache.GetUserGroup("testuser2")
 	if err != nil {
 		t.Error("Lookup should not have failed: testuser2")
 	}
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 1 {
 		t.Errorf("Cache not updated should have 1 entry %d", len(testCache.ugs))
 	}
@@ -140,11 +156,13 @@ func TestBrokenUserGroup(t *testing.T) {
 	if ug.Groups[0] != "100" {
 		t.Errorf("User 'testuser2' primary group resolved while it should not: %v", ug)
 	}
+	testCache.lock.Unlock()
 
 	ug, err = testCache.GetUserGroup("testuser3")
 	if err != nil {
 		t.Error("Lookup should not have failed: testuser3")
 	}
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 2 {
 		t.Errorf("Cache not updated should have 2 entries %d", len(testCache.ugs))
 	}
@@ -152,6 +170,7 @@ func TestBrokenUserGroup(t *testing.T) {
 	if len(ug.Groups) != 4 {
 		t.Errorf("User 'testuser3' not resolved correctly: duplicate primary group not filtered %v", ug)
 	}
+	testCache.lock.Unlock()
 
 	getLookupError := func(username string) error {
 		return fmt.Errorf("lookup failed for user: %s", username)
@@ -166,23 +185,28 @@ func TestBrokenUserGroup(t *testing.T) {
 	assert.ErrorContains(t, err, getLookupError("testuser5").Error())
 
 	ug, err = testCache.GetUserGroup("invalid-gid-user")
+	testCache.lock.Lock()
 	assert.ErrorContains(t, err, getLookupError("invalid-gid-user").Error())
 	exceptedGroup := []string{"1_001"}
 	if !reflect.DeepEqual(ug.Groups, exceptedGroup) {
 		t.Errorf("group should be: %v, but got: %v", exceptedGroup, ug.Groups)
 	}
+	testCache.lock.Unlock()
 }
 
 func TestGetUserGroupFail(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	// resolve an empty user
 	ug, err := testCache.GetUserGroup("")
+	testCache.lock.Lock()
 	if err == nil {
 		t.Error("Lookup should have failed: empty user")
 	}
@@ -190,9 +214,11 @@ func TestGetUserGroupFail(t *testing.T) {
 	if ug.User != "" || len(ug.Groups) != 0 || ug.resolved != 0 || ug.failed {
 		t.Errorf("UserGroup is not empty: %v", ug)
 	}
+	testCache.lock.Unlock()
 
 	// resolve a non existing user
 	ug, err = testCache.GetUserGroup("unknown")
+	testCache.lock.Lock()
 	if err == nil {
 		t.Error("Lookup should have failed: unknown user")
 	}
@@ -200,7 +226,10 @@ func TestGetUserGroupFail(t *testing.T) {
 	if ug.User != "unknown" || len(ug.Groups) != 0 || !ug.failed {
 		t.Errorf("UserGroup is not empty: %v", ug)
 	}
+	testCache.lock.Unlock()
+
 	ug, err = testCache.GetUserGroup("unknown")
+	testCache.lock.Lock()
 	if err == nil {
 		t.Error("Lookup should have failed: unknown user")
 	}
@@ -208,15 +237,18 @@ func TestGetUserGroupFail(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "cached data returned") {
 		t.Errorf("UserGroup not returned from Cache: %v, error: %v", ug, err)
 	}
+	testCache.lock.Unlock()
 }
 
 func TestCacheCleanUp(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	// resolve an existing user
 	_, err := testCache.GetUserGroup("testuser1")
@@ -228,38 +260,46 @@ func TestCacheCleanUp(t *testing.T) {
 		t.Error("Lookup should not have failed: testuser2 user")
 	}
 
+	testCache.lock.Lock()
 	ug := testCache.ugs["testuser1"]
 	if ug.failed {
 		t.Error("User 'testuser1' not resolved as a success")
 	}
 	// expire the successful lookup
 	ug.resolved -= 2 * poscache
+	testCache.lock.Unlock()
 
 	// resolve a non existing user
 	_, err = testCache.GetUserGroup("unknown")
 	if err == nil {
 		t.Error("Lookup should have failed: unknown user")
 	}
+	testCache.lock.Lock()
 	ug = testCache.ugs["unknown"]
 	if !ug.failed {
 		t.Error("User 'unknown' not resolved as a failure")
 	}
 	// expire the failed lookup
 	ug.resolved -= 2 * negcache
+	testCache.lock.Unlock()
 
 	testCache.cleanUpCache()
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 1 {
 		t.Errorf("Cache not cleaned up : %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 }
 
 func TestIntervalCacheCleanUp(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 
 	// resolve an existing user
 	_, err := testCache.GetUserGroup("testuser1")
@@ -271,39 +311,52 @@ func TestIntervalCacheCleanUp(t *testing.T) {
 		t.Error("Lookup should not have failed: testuser2 user")
 	}
 
+	testCache.lock.Lock()
 	ug := testCache.ugs["testuser1"]
 	if ug.failed {
 		t.Error("User 'testuser1' not resolved as a success")
 	}
+	testCache.lock.Unlock()
+
 	// expire the successful lookup
+	testCache.lock.Lock()
 	ug.resolved -= 2 * poscache
 
+	testCache.lock.Unlock()
 	// resolve a non existing user
 	_, err = testCache.GetUserGroup("unknown")
 	if err == nil {
 		t.Error("Lookup should have failed: unknown user")
 	}
+	testCache.lock.Lock()
 	ug = testCache.ugs["unknown"]
 	if !ug.failed {
 		t.Error("User 'unknown' not resolved as a failure")
 	}
 	// expire the failed lookup
 	ug.resolved -= 2 * negcache
+	testCache.lock.Unlock()
 
 	// sleep to wait for interval, it will trigger cleanUpCache
 	time.Sleep(testCache.interval + 1*time.Second)
+
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 1 {
 		t.Errorf("Cache not cleaned up : %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
 }
 
 func TestConvertUGI(t *testing.T) {
 	testCache := GetUserGroupCache("test")
 	testCache.resetCache()
 	// test cache should be empty now
+	testCache.lock.Lock()
 	if len(testCache.ugs) != 0 {
 		t.Fatalf("Cache not empty: %v", testCache.ugs)
 	}
+	testCache.lock.Unlock()
+
 	ugi := &si.UserGroupInformation{
 		User:   "",
 		Groups: nil,
@@ -318,9 +371,11 @@ func TestConvertUGI(t *testing.T) {
 	if err != nil {
 		t.Errorf("known user, no groups, convert should not have failed: %v", err)
 	}
+	testCache.lock.Lock()
 	if ug.User != "testuser1" || len(ug.Groups) != 2 || ug.resolved == 0 || ug.failed {
 		t.Errorf("User 'testuser1' not resolved correctly: %v", ug)
 	}
+	testCache.lock.Unlock()
 	// try unknown user without groups
 	ugi.User = "unknown"
 	ug, err = testCache.ConvertUGI(ugi, false)
@@ -341,12 +396,14 @@ func TestConvertUGI(t *testing.T) {
 	if err != nil {
 		t.Errorf("unknown user with groups, convert should not have failed: %v", err)
 	}
+	testCache.lock.Lock()
 	if ug.User != "unknown2" || len(ug.Groups) != 1 || ug.resolved == 0 || ug.failed {
 		t.Fatalf("User 'unknown2' not resolved correctly: %v", ug)
 	}
 	if ug.Groups[0] != group {
 		t.Errorf("groups not initialised correctly on convert: expected '%s' got '%s'", group, ug.Groups[0])
 	}
+	testCache.lock.Unlock()
 	// try valid username with groups
 	ugi.User = "validuserABCD1234@://#"
 	ugi.Groups = []string{group}
@@ -367,9 +424,11 @@ func TestConvertUGI(t *testing.T) {
 	ugi.Groups = []string{}
 	ug, err = testCache.ConvertUGI(ugi, true)
 	exceptedGroup := []string{common.AnonymousGroup}
+	testCache.lock.Lock()
 	if !reflect.DeepEqual(ug.Groups, exceptedGroup) {
 		t.Errorf("group should be: %v, but got: %v", exceptedGroup, ug.Groups)
 	}
+	testCache.lock.Unlock()
 	if err != nil {
 		t.Errorf("unknown user, no groups, convert should not have failed: %v", err)
 	}
