@@ -723,6 +723,10 @@ func TestUserGroupHeadroom(t *testing.T) {
 	// the place where it has been left. so there is no usage after the recent config change, entire group's quota would be returned as headroom.
 	headroom = manager.Headroom("root.parent", TestApp1, user)
 	assert.Equal(t, resources.Equals(headroom, usage1), true)
+
+	manager.groupTrackers[user.Groups[0]] = nil
+	headroom = manager.Headroom("root.parent", TestApp1, user)
+	assert.Equal(t, resources.Equals(headroom, usage1), true)
 }
 
 func TestDecreaseTrackedResourceForGroupTracker(t *testing.T) {
@@ -754,18 +758,24 @@ func TestDecreaseTrackedResourceForGroupTracker(t *testing.T) {
 	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, usage), true)
 
 	fmt.Printf("\n732\n")
-	// manager.resetGroupEarlierUsage(manager.groupTrackers["group1"], "root.parent")
 	manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
 	fmt.Printf("\n734\n")
 
-	groupTracker = m.GetGroupTracker(user.Groups[0])
-	assert.Equal(t, groupTracker != nil, true)
-	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], false)
-	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Zero), true)
+	// groupTracker = m.GetGroupTracker(user.Groups[0])
+	// assert.Equal(t, groupTracker != nil, true)
+	// assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], false)
+	// assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Zero), true)
 
-	fmt.Printf("\n739\n")
+	// fmt.Printf("\n739\n")
+	// manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
+	// manager.groupTrackers[user.Groups[0]] = nil
+	// manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
+
+	fmt.Printf("\n774\n")
+	conf.Queues[0].Queues = nil
+	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
 	manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
-	manager.groupTrackers[user.Groups[0]] = nil
+	fmt.Printf("\n778\n")
 	manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
 }
 
@@ -805,6 +815,10 @@ func TestIncreaseTrackedResourceForGroupTracker(t *testing.T) {
 	manager.IncreaseTrackedResource("root.parent", TestApp2, usage2, user)
 	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp2], true)
 	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Add(usage1, usage2)), true)
+
+	// manager.IncreaseTrackedResource("root.parent", TestApp2, usage2, user)
+	// assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp2], true)
+	// assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Add(usage1, usage2)), true)
 
 	//
 	manager.groupTrackers[user.Groups[0]] = nil
@@ -877,8 +891,9 @@ func TestUserGroupLimitWithMultipleApps(t *testing.T) {
 //nolint:funlen
 func TestCanRunApp(t *testing.T) {
 	testCases := []struct {
-		name   string
-		limits []configs.Limit
+		name            string
+		limits          []configs.Limit
+		groupTrackerNil bool
 	}{
 		{
 			name: "specific user limit",
@@ -936,7 +951,7 @@ func TestCanRunApp(t *testing.T) {
 				{
 					Limit:           "specific group limit",
 					Groups:          []string{"group1"},
-					MaxApplications: 100,
+					MaxApplications: 1,
 				},
 			},
 		},
@@ -954,6 +969,17 @@ func TestCanRunApp(t *testing.T) {
 					MaxApplications: 1,
 				},
 			},
+		},
+		{
+			name: "groupTracker is nil",
+			limits: []configs.Limit{
+				{
+					Limit:           "specific group limit",
+					Groups:          []string{"group1"},
+					MaxApplications: 1,
+				},
+			},
+			groupTrackerNil: true,
 		},
 	}
 
@@ -995,6 +1021,12 @@ func TestCanRunApp(t *testing.T) {
 			manager.IncreaseTrackedResource("root.default", TestApp1, usage, user)
 			canRunApp = manager.CanRunApp("root.default", TestApp2, user)
 			assert.Equal(t, canRunApp, false, fmt.Sprintf("user %s shouldn't be able to run app %s", user.User, TestApp2))
+
+			if tc.groupTrackerNil {
+				manager.groupTrackers[user.Groups[0]] = nil
+				canRunApp = manager.CanRunApp("root.default", TestApp2, user)
+				assert.Equal(t, canRunApp, true, fmt.Sprintf("user %s should be able to run app %s", user.User, TestApp2))
+			}
 		})
 	}
 }

@@ -234,7 +234,9 @@ func (m *Manager) GetGroupTracker(group string) *GroupTracker {
 func (m *Manager) ensureGroupTrackerForApp(queuePath, applicationID string, user security.UserGroup) {
 	userTracker := m.GetUserTracker(user.User)
 	// sanity check: caller should not have called this function if the application is already tracked
+	fmt.Printf("\n237\n")
 	if userTracker.hasGroupForApp(applicationID) {
+		fmt.Printf("\n238\n")
 		return
 	}
 	// check which group this matches
@@ -679,6 +681,7 @@ func (m *Manager) CanRunApp(queuePath, applicationID string, user security.UserG
 	userCanRunApp := userTracker.canRunApp(hierarchy, applicationID)
 	// make sure the user has a groupTracker for this application, if not yet there add it
 	if !userTracker.hasGroupForApp(applicationID) {
+		fmt.Printf("\nensureGroupTrackerForApp\n")
 		m.ensureGroupTrackerForApp(queuePath, applicationID, user)
 	}
 	// check if this application now has group tracking, if not we're done
@@ -687,7 +690,10 @@ func (m *Manager) CanRunApp(queuePath, applicationID string, user security.UserG
 		return userCanRunApp
 	}
 	groupTracker := m.GetGroupTracker(appGroup)
+	fmt.Printf("\n690:%v\n", appGroup)
+	fmt.Printf("\n690:%v\n", m.groupTrackers)
 	if groupTracker == nil {
+		fmt.Printf("\n691\n")
 		return userCanRunApp
 	}
 	groupCanRunApp := groupTracker.canRunApp(hierarchy, applicationID)

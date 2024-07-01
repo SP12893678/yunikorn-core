@@ -171,14 +171,14 @@ func (qt *QueueTracker) decreaseTrackedResource(hierarchy []string, applicationI
 	log.Log(log.SchedUGM).Debug("Remove queue tracker",
 		zap.String("queue path ", qt.queuePath),
 		zap.Bool("remove QT", removeQT))
-	// fmt.Printf("\n---------\n")
-	// fmt.Printf("\nqt.childQueueTrackers%v\n", qt.childQueueTrackers)
-	// fmt.Printf("\nlen(qt.childQueueTrackers) == 0:%v\n", len(qt.childQueueTrackers) == 0)
-	// fmt.Printf("\nlen(qt.runningApplications) == 0:%v\n", len(qt.runningApplications) == 0)
-	// fmt.Printf("\nresources.IsZero(qt.resourceUsage):%v\n", resources.IsZero(qt.resourceUsage))
-	// fmt.Printf("\nqt.maxRunningApps == 0:%v\n", qt.maxRunningApps == 0)
-	// fmt.Printf("\nresources.IsZero(qt.maxResources):%v\n", resources.IsZero(qt.maxResources))
-	// fmt.Printf("\n---------\n")
+	fmt.Printf("\n---------\n")
+	fmt.Printf("\nqt.childQueueTrackers%v\n", qt.childQueueTrackers)
+	fmt.Printf("\nlen(qt.childQueueTrackers) == 0:%v\n", len(qt.childQueueTrackers) == 0)
+	fmt.Printf("\nlen(qt.runningApplications) == 0:%v\n", len(qt.runningApplications) == 0)
+	fmt.Printf("\nresources.IsZero(qt.resourceUsage):%v\n", resources.IsZero(qt.resourceUsage))
+	fmt.Printf("\nqt.maxRunningApps == 0:%v\n", qt.maxRunningApps == 0)
+	fmt.Printf("\nresources.IsZero(qt.maxResources):%v\n", resources.IsZero(qt.maxResources))
+	fmt.Printf("\n---------\n")
 	return removeQT
 }
 
