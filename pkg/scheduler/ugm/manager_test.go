@@ -771,12 +771,18 @@ func TestDecreaseTrackedResourceForGroupTracker(t *testing.T) {
 	// manager.groupTrackers[user.Groups[0]] = nil
 	// manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
 
-	fmt.Printf("\n774\n")
-	conf.Queues[0].Queues = nil
-	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+	// fmt.Printf("\n774\n")
+	// conf.Queues[0].Queues = nil
+	// assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+	// manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
+	// fmt.Printf("\n778\n")
+	// manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
+
 	manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
-	fmt.Printf("\n778\n")
+	manager.groupTrackers[user.Groups[0]] = nil
+	fmt.Printf("\n\n---------------------------\n\n")
 	manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
+
 }
 
 func TestIncreaseTrackedResourceForGroupTracker(t *testing.T) {
