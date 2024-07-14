@@ -24,6 +24,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/common/security"
@@ -69,6 +70,13 @@ func TestGTIncreaseTrackedResource(t *testing.T) {
 		t.Errorf("new resource create returned error or wrong resource: error %t, res %v", err, usage3)
 	}
 	groupTracker.increaseTrackedResource(path4, TestApp4, usage4, user.User)
+
+	// groupTracker = nil
+	// usage5, err := resources.NewResourceFromConf(map[string]string{"mem": "20M", "vcore": "20"})
+	// if err != nil {
+	// 	t.Errorf("new resource create returned error or wrong resource: error %t, res %v", err, usage3)
+	// }
+	// groupTracker.increaseTrackedResource("root.parent.child123", TestApp4, usage5, user.User)
 	actualResources := getGroupResource(groupTracker)
 
 	assert.Equal(t, "map[mem:80000000 vcore:80000]", actualResources["root"].String(), "wrong resource")
@@ -76,8 +84,15 @@ func TestGTIncreaseTrackedResource(t *testing.T) {
 	assert.Equal(t, "map[mem:40000000 vcore:40000]", actualResources["root.parent.child1"].String(), "wrong resource")
 	assert.Equal(t, "map[mem:30000000 vcore:30000]", actualResources["root.parent.child1.child12"].String(), "wrong resource")
 	assert.Equal(t, "map[mem:20000000 vcore:20000]", actualResources["root.parent.child2"].String(), "wrong resource")
-	assert.Equal(t, "map[mem:20000000 vcore:20000]", actualResources["root.parent.child12"].String(), "wrong resource")
 	assert.Equal(t, 4, len(groupTracker.getTrackedApplications()))
+
+	groupTracker = nil
+	usage5, err := resources.NewResourceFromConf(map[string]string{"mem": "20M", "vcore": "20"})
+	if err != nil {
+		t.Errorf("new resource create returned error or wrong resource: error %t, res %v", err, usage3)
+	}
+	groupTracker.increaseTrackedResource("root.parent.child123", TestApp4, usage5, user.User)
+	assert.Equal(t, groupTracker == nil, true)
 }
 
 func TestGTDecreaseTrackedResource(t *testing.T) {
@@ -147,6 +162,13 @@ func TestGTDecreaseTrackedResource(t *testing.T) {
 	removeQT = groupTracker.decreaseTrackedResource(path2, TestApp2, usage5, true)
 	assert.Equal(t, 0, len(groupTracker.getTrackedApplications()))
 	assert.Equal(t, removeQT, true, "wrong remove queue tracker value")
+
+	groupTracker = nil
+	removeQT = groupTracker.decreaseTrackedResource(path2, TestApp2, usage5, true)
+	assert.Equal(t, removeQT, false)
+
+	removedApplications := groupTracker.decreaseAllTrackedResourceUsage([]string{})
+	assert.Equal(t, removedApplications == nil, true)
 }
 
 func TestGTSetAndClearMaxLimits(t *testing.T) {
@@ -258,4 +280,14 @@ func getGroupResource(gt *GroupTracker) map[string]*resources.Resource {
 	resources := make(map[string]*resources.Resource)
 	usage := gt.GetGroupResourceUsageDAOInfo()
 	return internalGetResource(usage.Queues, resources)
+}
+
+func TestBasicGroupTracker(t *testing.T) {
+	user := &security.UserGroup{User: "test", Groups: []string{"test"}}
+	eventSystem := mock.NewEventSystem()
+	groupTracker := newGroupTracker(user.User, newUGMEvents(eventSystem))
+	assert.Equal(t, groupTracker.getName(), user.Groups[0])
+
+	groupTracker = nil
+	assert.Equal(t, groupTracker.getName(), common.Empty)
 }

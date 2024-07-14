@@ -98,6 +98,7 @@ func (m *Manager) IncreaseTrackedResource(queuePath, applicationID string, usage
 		m.ensureGroupTrackerForApp(queuePath, applicationID, user)
 	}
 	userTracker.increaseTrackedResource(queuePath, applicationID, usage)
+	fmt.Printf("\n101:%v\n", applicationID)
 	appGroup := userTracker.getGroupForApp(applicationID)
 	log.Log(log.SchedUGM).Debug("Increasing resource usage for user",
 		zap.String("user", user.User),
@@ -108,8 +109,11 @@ func (m *Manager) IncreaseTrackedResource(queuePath, applicationID string, usage
 	if appGroup == common.Empty {
 		return
 	}
+	fmt.Printf("\n112:%v\n", appGroup)
 	groupTracker := m.GetGroupTracker(appGroup)
+	fmt.Printf("\n113:%v\n", groupTracker)
 	if groupTracker == nil {
+		fmt.Printf("\n116:\n")
 		log.Log(log.SchedUGM).Error("group tracker should be available in groupTrackers map",
 			zap.String("application", applicationID),
 			zap.String("group", appGroup))
@@ -165,7 +169,9 @@ func (m *Manager) DecreaseTrackedResource(queuePath, applicationID string, usage
 		return
 	}
 	groupTracker := m.GetGroupTracker(appGroup)
+	fmt.Printf("\n172:%v\n", appGroup)
 	if groupTracker == nil {
+		fmt.Printf("\n174\n")
 		log.Log(log.SchedUGM).Error("group tracker should be available in groupTrackers map",
 			zap.String("application", applicationID),
 			zap.String("group", appGroup))
@@ -177,7 +183,9 @@ func (m *Manager) DecreaseTrackedResource(queuePath, applicationID string, usage
 		zap.String("application", applicationID),
 		zap.Stringer("resource", usage),
 		zap.Bool("removeApp", removeApp))
+	fmt.Printf("\n186\n")
 	if groupTracker.decreaseTrackedResource(queuePath, applicationID, usage, removeApp) {
+		fmt.Printf("\n187\n")
 		log.Log(log.SchedUGM).Info("Removing group from manager",
 			zap.String("group", appGroup),
 			zap.String("queue path", queuePath),
@@ -226,13 +234,15 @@ func (m *Manager) GetGroupTracker(group string) *GroupTracker {
 func (m *Manager) ensureGroupTrackerForApp(queuePath, applicationID string, user security.UserGroup) {
 	userTracker := m.GetUserTracker(user.User)
 	// sanity check: caller should not have called this function if the application is already tracked
+	fmt.Printf("\n237\n")
 	if userTracker.hasGroupForApp(applicationID) {
+		fmt.Printf("\n238\n")
 		return
 	}
 	// check which group this matches
 	appGroup := m.ensureGroup(user, queuePath)
 	var groupTracker *GroupTracker
-
+	fmt.Printf("\n238:%v\n", appGroup)
 	// something matched, get the tracker or create if it does not exist
 	if appGroup != common.Empty {
 		groupTracker = m.GetGroupTracker(appGroup)
@@ -493,6 +503,7 @@ func (m *Manager) clearEarlierSetUserLimits(newUserLimits map[string]map[string]
 // Reset the max apps and max resources to default, unlink the end leaf queue of queue path from its immediate parent and
 // eventually remove user tracker object itself from ugm if it can be removed.
 func (m *Manager) resetUserEarlierUsage(ut *UserTracker, queuePath string) {
+	fmt.Printf("\n496resetUserEarlierUsage\n")
 	// Is this user already tracked for the queue path?
 	hierarchy := strings.Split(queuePath, configs.DOT)
 	if ut.IsQueuePathTrackedCompletely(hierarchy) {
@@ -542,6 +553,7 @@ func (m *Manager) clearEarlierSetGroupLimits(newGroupLimits map[string]map[strin
 // Reset the max apps and max resources to default, unlink the end leaf queue of queue path from its immediate parent and
 // eventually remove group tracker object itself from ugm if it can be removed.
 func (m *Manager) resetGroupEarlierUsage(gt *GroupTracker, queuePath string) {
+	fmt.Printf("\n546resetGroupEarlierUsage\n")
 	hierarchy := strings.Split(queuePath, configs.DOT)
 	if gt.IsQueuePathTrackedCompletely(hierarchy) {
 		log.Log(log.SchedUGM).Debug("Need to clear earlier set configs for group",
@@ -669,6 +681,7 @@ func (m *Manager) CanRunApp(queuePath, applicationID string, user security.UserG
 	userCanRunApp := userTracker.canRunApp(hierarchy, applicationID)
 	// make sure the user has a groupTracker for this application, if not yet there add it
 	if !userTracker.hasGroupForApp(applicationID) {
+		fmt.Printf("\nensureGroupTrackerForApp\n")
 		m.ensureGroupTrackerForApp(queuePath, applicationID, user)
 	}
 	// check if this application now has group tracking, if not we're done
@@ -677,7 +690,10 @@ func (m *Manager) CanRunApp(queuePath, applicationID string, user security.UserG
 		return userCanRunApp
 	}
 	groupTracker := m.GetGroupTracker(appGroup)
+	fmt.Printf("\n690:%v\n", appGroup)
+	fmt.Printf("\n690:%v\n", m.groupTrackers)
 	if groupTracker == nil {
+		fmt.Printf("\n691\n")
 		return userCanRunApp
 	}
 	groupCanRunApp := groupTracker.canRunApp(hierarchy, applicationID)

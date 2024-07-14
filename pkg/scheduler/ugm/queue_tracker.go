@@ -19,6 +19,8 @@
 package ugm
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	"github.com/apache/yunikorn-core/pkg/common"
@@ -169,6 +171,14 @@ func (qt *QueueTracker) decreaseTrackedResource(hierarchy []string, applicationI
 	log.Log(log.SchedUGM).Debug("Remove queue tracker",
 		zap.String("queue path ", qt.queuePath),
 		zap.Bool("remove QT", removeQT))
+	fmt.Printf("\n---------\n")
+	fmt.Printf("\nqt.childQueueTrackers%v\n", qt.childQueueTrackers)
+	fmt.Printf("\nlen(qt.childQueueTrackers) == 0:%v\n", len(qt.childQueueTrackers) == 0)
+	fmt.Printf("\nlen(qt.runningApplications) == 0:%v\n", len(qt.runningApplications) == 0)
+	fmt.Printf("\nresources.IsZero(qt.resourceUsage):%v\n", resources.IsZero(qt.resourceUsage))
+	fmt.Printf("\nqt.maxRunningApps == 0:%v\n", qt.maxRunningApps == 0)
+	fmt.Printf("\nresources.IsZero(qt.maxResources):%v\n", resources.IsZero(qt.maxResources))
+	fmt.Printf("\n---------\n")
 	return removeQT
 }
 
@@ -403,10 +413,14 @@ func (qt *QueueTracker) canRunApp(hierarchy []string, applicationID string, trac
 // it decides the removal. It returns false the moment it sees any unexpected values for any queue in any levels.
 // Note: Lock free call. The RLock of the linked tracker (UserTracker and GroupTracker) should be held before calling this function.
 func (qt *QueueTracker) canBeRemoved() bool {
+	fmt.Printf("\ncanBeRemoved1:%v\n", len(qt.childQueueTrackers))
 	for _, childQT := range qt.childQueueTrackers {
 		// quick check to avoid further traversal
+		fmt.Printf("\n410:%v\n", childQT)
 		if childQT.canBeRemovedInternal() {
+			fmt.Printf("\n420:%v\n", childQT.canBeRemoved())
 			if !childQT.canBeRemoved() {
+				fmt.Printf("\n423\n")
 				return false
 			}
 		} else {
@@ -418,6 +432,13 @@ func (qt *QueueTracker) canBeRemoved() bool {
 }
 
 func (qt *QueueTracker) canBeRemovedInternal() bool {
+	fmt.Printf("\nlen(qt.runningApplications) == 0:%v\n", len(qt.runningApplications) == 0)
+	fmt.Printf("\nresources.IsZero(qt.resourceUsage):%v\n", resources.IsZero(qt.resourceUsage))
+	fmt.Printf("\nlen(qt.childQueueTrackers) == 0:%v\n", len(qt.childQueueTrackers) == 0)
+	fmt.Printf("\nqt.maxRunningApps == 0:%v\n", qt.maxRunningApps == 0)
+	fmt.Printf("\nqt.maxRunningApps:%v\n", qt.maxRunningApps)
+	fmt.Printf("\nresources.IsZero(qt.maxResources):%v\n", resources.IsZero(qt.maxResources))
+	fmt.Printf("\nqt.maxResources:%v\n", qt.maxResources)
 	if len(qt.runningApplications) == 0 && resources.IsZero(qt.resourceUsage) && len(qt.childQueueTrackers) == 0 &&
 		qt.maxRunningApps == 0 && resources.IsZero(qt.maxResources) {
 		return true

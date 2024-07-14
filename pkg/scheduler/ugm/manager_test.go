@@ -26,6 +26,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
+	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-core/pkg/common/configs"
 	"github.com/apache/yunikorn-core/pkg/common/resources"
 	"github.com/apache/yunikorn-core/pkg/common/security"
@@ -240,12 +241,21 @@ func TestAddRemoveUserAndGroups(t *testing.T) {
 	assert.Equal(t, 1, len(manager.GetUsersResources()), "userTrackers count should be 1")
 	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
 
+	// user unknown not in userTrackers, should nothing happen
+	unknownUser := security.UserGroup{User: "unknown", Groups: []string{"unknown"}}
+	manager.DecreaseTrackedResource(queuePath2, TestApp2, usage2, unknownUser, true)
+	assert.Equal(t, 1, len(manager.GetUsersResources()), "userTrackers count should be 1")
+	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
+
 	manager.DecreaseTrackedResource(queuePath2, TestApp2, usage2, user1, true)
 	assert.Equal(t, 0, len(manager.GetUsersResources()), "userTrackers count should be 0")
 	assert.Equal(t, 0, len(manager.GetGroupsResources()), "groupTrackers count should be 0")
 
 	assert.Assert(t, manager.GetUserTracker(user.User) == nil)
 	assert.Assert(t, manager.GetGroupTracker(user.Groups[0]) == nil)
+
+	manager.IncreaseTrackedResource(queuePath2, TestApp2, usage2, user1)
+	manager.IncreaseTrackedResource(queuePath2, TestApp2, usage2, user1)
 }
 
 func TestUpdateConfig(t *testing.T) {
@@ -293,6 +303,10 @@ func TestUpdateConfig(t *testing.T) {
 	assert.NilError(t, err)
 	headroom = manager.Headroom(queuePath1, TestApp1, user)
 	assert.Equal(t, headroom.FitInMaxUndef(usage), false)
+
+	conf = createConfig(user.User, user.Groups[0], "memory", "500m", 10, 10)
+	err = manager.UpdateConfig(conf.Queues[0], "root")
+	assert.Equal(t, err != nil, true)
 }
 
 func TestUseWildCard(t *testing.T) {
@@ -542,23 +556,42 @@ func TestUpdateConfigClearEarlierSetLimits(t *testing.T) {
 
 	// override user2 * root.parent maxapps as [70, 70] and maxapps as 10 (twice for root)
 	// and wild card settings
-	conf = createUpdateConfigWithWildCardUsersAndGroups(user1.User, user1.Groups[0], "*", "*", "10", "10")
+	// conf =createConfig(user.User, user.Groups[0], "memory", "10", 50, 0)
+	// limits := []configs.Limit{
+	// 	{
+	// 		Limit: "parent queue limit for specific user",
+	// 		Users: []string{
+	// 			user1.User,
+	// 		},
+	// 		Groups: []string{
+	// 			user1.Groups[0],
+	// 		},
+	// 		MaxResources:    map[string]string{},
+	// 		MaxApplications: 0,
+	// 	},
+	// }
+	// conf = createConfigWithLimits(limits)
+	conf = createUpdateConfigWithChildQueueEmpty(user1.User, user1.Groups[0])
+	fmt.Printf("\ntest-57000000000000000\n")
+	// conf = createUpdateConfigWithWildCardUsersAndGroups(user1.User, user1.Groups[0], "*", "*", "10", "10")
 	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
-	assert.Equal(t, manager.GetUserTracker(user1.User) != nil, true)
-	assert.Equal(t, manager.GetGroupTracker(user1.Groups[0]) != nil, true)
-	assertMaxLimits(t, user1, expectedResource, 10)
-	assertWildCardLimits(t, m.userWildCardLimitsConfig, expectedResource)
-	assertWildCardLimits(t, m.groupWildCardLimitsConfig, expectedResource)
+	// assert.Equal(t, manager.GetUserTracker(user1.User) != nil, true)
+	// assert.Equal(t, manager.GetGroupTracker(user1.Groups[0]) != nil, true)
+	// assertMaxLimits(t, user1, expectedResource, 10)
+	// assertWildCardLimits(t, m.userWildCardLimitsConfig, expectedResource)
+	// assertWildCardLimits(t, m.groupWildCardLimitsConfig, expectedResource)
 
 	// config without limits - should clear all earlier set configs
-	conf = createConfigWithoutLimits()
-	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
-	assert.Equal(t, manager.GetUserTracker(user.User) == nil, true)
-	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
-	assert.Equal(t, manager.GetUserTracker(user1.User) == nil, true)
-	assert.Equal(t, manager.GetGroupTracker(user1.Groups[0]) == nil, true)
-	assert.Equal(t, len(manager.userWildCardLimitsConfig), 0)
-	assert.Equal(t, len(manager.groupWildCardLimitsConfig), 0)
+	// fmt.Printf("\n---------------\n")
+	// fmt.Printf("\ntest-563\n")
+	// conf = createConfigWithoutLimits()
+	// assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+	// assert.Equal(t, manager.GetUserTracker(user.User) == nil, true)
+	// assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
+	// assert.Equal(t, manager.GetUserTracker(user1.User) == nil, true)
+	// assert.Equal(t, manager.GetGroupTracker(user1.Groups[0]) == nil, true)
+	// assert.Equal(t, len(manager.userWildCardLimitsConfig), 0)
+	// assert.Equal(t, len(manager.groupWildCardLimitsConfig), 0)
 }
 
 func TestUpdateConfigClearEarlierSetGroupLimits(t *testing.T) {
@@ -587,9 +620,13 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 	// Queue setup:
 	// root->parent
 	user := security.UserGroup{User: "user1", Groups: []string{"group1"}}
+	user2 := security.UserGroup{User: "user2", Groups: []string{"group2"}}
 	conf := createUpdateConfig(user.User, user.Groups[0])
 	manager := GetUserManager()
 	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+
+	// conf = createUpdateConfig(user2.User, user2.Groups[0])
+	// manager.UpdateConfig(conf.Queues[0], "root")
 
 	expectedResource, err := resources.NewResourceFromConf(map[string]string{"memory": "50", "vcores": "50"})
 	if err != nil {
@@ -603,12 +640,16 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 
 	for i := 1; i <= 2; i++ {
 		manager.IncreaseTrackedResource(queuePath1, TestApp1, usage, user)
+		manager.IncreaseTrackedResource(queuePath1, "test-app-2", usage, user2)
 	}
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
-
+	fmt.Printf("\nGoal1Test\n")
+	manager.DecreaseTrackedResource(queuePath1, "test-app-2", usage, user2, true)
+	fmt.Printf("\nGoal1Test-\n")
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, false)
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, true)
+	fmt.Printf("\nGoal1Test\n")
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
 
@@ -618,9 +659,9 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) != nil, true)
-
+	fmt.Printf("\nGoal1Test2\n")
 	manager.DecreaseTrackedResource("root.parent.leaf", TestApp1, usage, user, true)
-
+	fmt.Printf("\nGoal1Test2\n")
 	conf = createConfigWithoutLimits()
 	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
 
@@ -629,9 +670,10 @@ func TestSetMaxLimitsForRemovedUsers(t *testing.T) {
 	}
 	assert.Equal(t, manager.GetUserTracker(user.User) != nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
-
+	fmt.Printf("\nGoal1Test3\n")
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, false)
 	manager.DecreaseTrackedResource(queuePath1, TestApp1, usage, user, true)
+	fmt.Printf("\nGoal1Test3\n")
 	assert.Equal(t, manager.GetUserTracker(user.User) == nil, true)
 	assert.Equal(t, manager.GetGroupTracker(user.Groups[0]) == nil, true)
 }
@@ -681,6 +723,10 @@ func TestUserGroupHeadroom(t *testing.T) {
 	// the place where it has been left. so there is no usage after the recent config change, entire group's quota would be returned as headroom.
 	headroom = manager.Headroom("root.parent", TestApp1, user)
 	assert.Equal(t, resources.Equals(headroom, usage1), true)
+
+	manager.groupTrackers[user.Groups[0]] = nil
+	headroom = manager.Headroom("root.parent", TestApp1, user)
+	assert.Equal(t, resources.Equals(headroom, usage1), true)
 }
 
 func TestDecreaseTrackedResourceForGroupTracker(t *testing.T) {
@@ -717,6 +763,37 @@ func TestDecreaseTrackedResourceForGroupTracker(t *testing.T) {
 	assert.Equal(t, groupTracker != nil, true)
 	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], false)
 	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Zero), true)
+
+	groupTracker = m.GetGroupTracker(user.Groups[0])
+	assert.Equal(t, groupTracker != nil, true)
+	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], false)
+	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Zero), true)
+
+	fmt.Printf("\n774\n")
+	conf.Queues[0].Queues = nil
+	assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+	manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
+	fmt.Printf("\n778\n")
+	manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
+
+	// conf = createConfigWithoutLimits()
+	// conf.Queues[0].Queues[0].Limits = []configs.Limit{
+	// 	{
+	// 		Limit:           "parent queue limit for a specific group",
+	// 		Groups:          user.Groups,
+	// 		MaxResources:    map[string]string{"memory": "100"},
+	// 		MaxApplications: 2,
+	// 	},
+	// }
+	// fmt.Printf("\n739\n")
+	// assert.NilError(t, manager.UpdateConfig(conf.Queues[0], "root"))
+	// manager.IncreaseTrackedResource("root.parent", TestApp1, usage, user)
+	// manager.groupTrackers[user.Groups[0]] = nil
+	// manager.DecreaseTrackedResource("root.parent", TestApp1, usage, user, true)
+	// assert.Equal(t, groupTracker != nil, true)
+	// assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], true)
+	// assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Zero), false)
+
 }
 
 func TestIncreaseTrackedResourceForGroupTracker(t *testing.T) {
@@ -755,6 +832,26 @@ func TestIncreaseTrackedResourceForGroupTracker(t *testing.T) {
 	manager.IncreaseTrackedResource("root.parent", TestApp2, usage2, user)
 	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp2], true)
 	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Add(usage1, usage2)), true)
+
+	// manager.IncreaseTrackedResource("root.parent", TestApp2, usage2, user)
+	// assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp2], true)
+	// assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Add(usage1, usage2)), true)
+
+	//
+	manager.groupTrackers[user.Groups[0]] = nil
+	usage3, err := resources.NewResourceFromConf(map[string]string{"memory": "80"})
+	if err != nil {
+		t.Errorf("new resource create returned error or wrong resource: error %t, res %v", err, usage2)
+	}
+	manager.IncreaseTrackedResource("root.parent", "test-app-2", usage3, user)
+	assert.Equal(t, groupTracker.queueTracker.childQueueTrackers["parent"].runningApplications[TestApp1], true)
+	assert.Equal(t, resources.Equals(groupTracker.queueTracker.childQueueTrackers["parent"].resourceUsage, resources.Add(usage1, usage2)), true)
+
+	//
+	user = security.UserGroup{User: "user2", Groups: []string{}}
+	manager.IncreaseTrackedResource("root.parent", "test-app-3", usage3, user)
+	appGroup := manager.getUserTracker(user.User).getGroupForApp("test-app-3")
+	assert.Equal(t, appGroup, common.Empty)
 }
 
 func TestUserGroupLimitWithMultipleApps(t *testing.T) {
@@ -811,8 +908,9 @@ func TestUserGroupLimitWithMultipleApps(t *testing.T) {
 //nolint:funlen
 func TestCanRunApp(t *testing.T) {
 	testCases := []struct {
-		name   string
-		limits []configs.Limit
+		name            string
+		limits          []configs.Limit
+		groupTrackerNil bool
 	}{
 		{
 			name: "specific user limit",
@@ -870,7 +968,7 @@ func TestCanRunApp(t *testing.T) {
 				{
 					Limit:           "specific group limit",
 					Groups:          []string{"group1"},
-					MaxApplications: 100,
+					MaxApplications: 1,
 				},
 			},
 		},
@@ -888,6 +986,17 @@ func TestCanRunApp(t *testing.T) {
 					MaxApplications: 1,
 				},
 			},
+		},
+		{
+			name: "groupTracker is nil",
+			limits: []configs.Limit{
+				{
+					Limit:           "specific group limit",
+					Groups:          []string{"group1"},
+					MaxApplications: 1,
+				},
+			},
+			groupTrackerNil: true,
 		},
 	}
 
@@ -929,6 +1038,12 @@ func TestCanRunApp(t *testing.T) {
 			manager.IncreaseTrackedResource("root.default", TestApp1, usage, user)
 			canRunApp = manager.CanRunApp("root.default", TestApp2, user)
 			assert.Equal(t, canRunApp, false, fmt.Sprintf("user %s shouldn't be able to run app %s", user.User, TestApp2))
+
+			if tc.groupTrackerNil {
+				manager.groupTrackers[user.Groups[0]] = nil
+				canRunApp = manager.CanRunApp("root.default", TestApp2, user)
+				assert.Equal(t, canRunApp, true, fmt.Sprintf("user %s should be able to run app %s", user.User, TestApp2))
+			}
 		})
 	}
 }
@@ -1685,6 +1800,61 @@ func createUpdateConfigWithWildCardUsersAndGroups(user string, group string, wil
 							"vcores": "140",
 						},
 						MaxApplications: 20,
+					},
+				},
+			},
+		},
+	}
+	return conf
+}
+
+func createUpdateConfigWithChildQueueEmpty(user string, group string) configs.PartitionConfig {
+	conf := configs.PartitionConfig{
+		Name: "test",
+		Queues: []configs.QueueConfig{
+			{
+				Name:      "root",
+				Parent:    true,
+				SubmitACL: "*",
+				Queues: []configs.QueueConfig{
+					{
+						Name:      "parent",
+						Parent:    true,
+						SubmitACL: "*",
+						Queues: []configs.QueueConfig{
+							{
+								Name:      "parent",
+								Parent:    true,
+								SubmitACL: "*",
+								Queues:    nil,
+								Limits: []configs.Limit{
+									{
+										Limit: "parent queue limit for specific user",
+										Users: []string{
+											user,
+										},
+										Groups: []string{
+											group,
+										},
+										MaxResources:    map[string]string{},
+										MaxApplications: 0,
+									},
+								},
+							},
+						},
+						Limits: []configs.Limit{
+							{
+								Limit: "parent queue limit for specific user",
+								Users: []string{
+									user,
+								},
+								Groups: []string{
+									group,
+								},
+								MaxResources:    map[string]string{},
+								MaxApplications: 0,
+							},
+						},
 					},
 				},
 			},

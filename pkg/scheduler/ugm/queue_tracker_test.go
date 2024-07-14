@@ -19,6 +19,7 @@
 package ugm
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -144,6 +145,9 @@ func TestQTDecreaseTrackedResource(t *testing.T) {
 		t.Errorf("new resource create returned error or wrong resource: error %t, res %v", err, usage2)
 	}
 	queueTracker.increaseTrackedResource([]string{"root", "parent"}, TestApp2, user, usage2)
+
+	removeQT = queueTracker.decreaseTrackedResource([]string{"root", "unknow"}, TestApp2, usage5, true)
+	assert.Equal(t, removeQT, false, "wrong remove queue tracker value")
 }
 
 func TestQTQuotaEnforcement(t *testing.T) {
@@ -373,8 +377,16 @@ func TestSetLimit(t *testing.T) {
 	assert.Equal(t, uint64(5), childQ.maxRunningApps)
 }
 
+func TestNilQueueTracker(t *testing.T) {
+	resources := getQTResource(nil)
+	if resources[""] != nil {
+		t.Errorf("should be nil")
+	}
+}
+
 func getQTResource(qt *QueueTracker) map[string]*resources.Resource {
 	resources := make(map[string]*resources.Resource)
 	usage := qt.getResourceUsageDAOInfo("")
+	fmt.Printf("\n389:%v:\n", usage.QueuePath)
 	return internalGetResource(usage, resources)
 }
