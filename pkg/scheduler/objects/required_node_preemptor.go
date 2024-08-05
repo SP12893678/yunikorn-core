@@ -19,6 +19,7 @@
 package objects
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/apache/yunikorn-core/pkg/common/resources"
@@ -81,7 +82,7 @@ func (p *PreemptionContext) sortAllocations() {
 	sort.SliceStable(p.allocations, func(i, j int) bool {
 		l := p.allocations[i]
 		r := p.allocations[j]
-
+		fmt.Printf("\n85\n")
 		// sort based on the type
 		lAskType := 1         // regular pod
 		if l.IsOriginator() { // driver/owner pod
@@ -90,18 +91,20 @@ func (p *PreemptionContext) sortAllocations() {
 			lAskType = 2
 		}
 		rAskType := 1
+		fmt.Printf("\n94\n")
 		if r.IsOriginator() {
 			rAskType = 3
 		} else if !r.IsAllowPreemptSelf() {
 			rAskType = 2
 		}
+		fmt.Printf("\n99\n")
 		if lAskType < rAskType {
 			return true
 		}
 		if lAskType > rAskType {
 			return false
 		}
-
+		fmt.Printf("\n105\n")
 		// sort based on the priority
 		lPriority := l.GetPriority()
 		rPriority := r.GetPriority()
@@ -111,19 +114,23 @@ func (p *PreemptionContext) sortAllocations() {
 		if lPriority > rPriority {
 			return false
 		}
-
+		fmt.Printf("\n115\n")
 		// sort based on the age
 		if !l.GetCreateTime().Equal(r.GetCreateTime()) {
 			return l.GetCreateTime().After(r.GetCreateTime())
 		}
 
 		// sort based on the allocated resource
+		fmt.Printf("\n122\n")
 		lResource := l.GetAllocatedResource()
 		rResource := r.GetAllocatedResource()
+		fmt.Printf("\n1lResource22%v:%v\n", lResource, l.allocationKey)
+		fmt.Printf("\n1rResource22%v:%v\n", rResource, r.allocationKey)
 		if !resources.Equals(lResource, rResource) {
 			delta := resources.Sub(lResource, rResource)
 			return !resources.StrictlyGreaterThanZero(delta)
 		}
+		fmt.Printf("\n131\n")
 		return true
 	})
 }
